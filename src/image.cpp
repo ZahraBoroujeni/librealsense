@@ -11,7 +11,7 @@
 #ifndef __arm__
 	#include <tmmintrin.h> // For SSE3 intrinsics used in unpack_yuy2_sse
 #else
-	inline uint8_t clamp_byte(int v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+	#include "SSE2NEON.h"
 #endif
 
 #pragma pack(push, 1) // All structs in this file are assumed to be byte-packed
@@ -68,7 +68,6 @@ namespace rsimpl
     // It is expected that all branching outside of the loop control variable will be removed due to constant-folding.
     template<rs_format FORMAT> void unpack_yuy2(byte * const d [], const byte * s, int n)
     {
-#ifndef __arm__
         assert(n % 16 == 0); // All currently supported color resolutions are multiples of 16 pixels. Could easily extend support to other resolutions by copying final n<16 pixels into a zero-padded buffer and recursively calling self for final iteration.
         auto src = reinterpret_cast<const __m128i *>(s);
         auto dst = reinterpret_cast<__m128i *>(d[0]);
@@ -211,37 +210,6 @@ namespace rsimpl
                 }
             }
         }
-#else
-		// Currently only YUY2 to RGB8 is implemented for ARM.
-		if (FORMAT == RS_FORMAT_RGB8)
-		{
-			auto ptrIn = reinterpret_cast<const uint8_t *>(s);
-			auto ptrOut = reinterpret_cast<uint8_t *>(d[0]);
-
-			int k = 0;
-			int d_size = sizeof(d)/sizeof(*d);
-
-			for (int i = 0; i < n / 2 && k < d_size; ++i)
-			{
-				uint8_t y0 = ptrIn[0];
-				uint8_t u0 = ptrIn[1];
-				uint8_t y1 = ptrIn[2];
-				uint8_t v0 = ptrIn[3];
-				ptrIn += 4;
-				int c = y0 - 16;
-				int d = u0 - 128;
-				int e = v0 - 128;
-				ptrOut[k + 0] = clamp_byte((128 + 298 * c + 409 * e) >> 8); // red
-				ptrOut[k + 1] = clamp_byte((128 + 298 * c - 100 * d - 208 * e) >> 8); // green
-				ptrOut[k + 2] = clamp_byte((128 + 298 * c + 516 * d) >> 8); // blue
-				c = y1 - 16;
-				ptrOut[k + 3] = clamp_byte((128 + 298 * c + 409 * e) >> 8); // red
-				ptrOut[k + 4] = clamp_byte((128 + 298 * c - 100 * d - 208 * e) >> 8); // green
-				ptrOut[k + 5] = clamp_byte((128 + 298 * c + 516 * d) >> 8); // blue
-				k += 6;
-			}
-		}
-#endif // !__arm__
     }
     
     //////////////////////////////////////
